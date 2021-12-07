@@ -35,7 +35,9 @@ import java.util.regex.Pattern;
 import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR;
 
 public class SimpleHttpsServer {
-    /** this is for the in-memory KeyStore we don't need a password really */
+    /**
+     * this is for the in-memory KeyStore we don't need a password really
+     */
     public static final char[] noPass = "noPass".toCharArray();
 
     public static final Path keyPath = Path.of("key.pem");
@@ -43,42 +45,9 @@ public class SimpleHttpsServer {
 
     private static final String pemKeyConst = "BEGIN PRIVATE KEY";
     private static final String pemCertConst = "BEGIN CERTIFICATE";
-
-    // code snippet from https://stackoverflow.com/questions/42675033/how-to-build-a-sslsocketfactory-from-pem-certificate-and-key-without-converting
-    KeyStore getKeyStore() throws KeyStoreException, CertificateException, IOException, NoSuchAlgorithmException, InvalidKeySpecException {
-        KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-        ks.load(null, null);
-        byte[] keyBytes = getPemBytes(SimpleHttpsServer.keyPath, SimpleHttpsServer.pemKeyConst);
-        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-        var alg = spec.getAlgorithm();
-        if (alg == null) alg = "RSA";
-        KeyFactory kf = KeyFactory.getInstance(alg);
-        Key serverKey = kf.generatePrivate(spec);
-        CertificateFactory cf = CertificateFactory.getInstance("X509");
-        byte[] certBytes = getPemBytes(SimpleHttpsServer.serverCertPath, SimpleHttpsServer.pemCertConst);
-        Certificate serverCertificate = cf.generateCertificate(new ByteArrayInputStream(certBytes));
-        ks.setKeyEntry("serverKey", serverKey, SimpleHttpsServer.noPass, new Certificate[]{serverCertificate});
-        ks.setCertificateEntry("serverCert", serverCertificate);
-        return ks;
-    }
-
     private static final Pattern pemRE = Pattern.compile("---*([^-\n]+)-+\n([^-]+)\n---*([^-]+)-+\n");
-
-    private static byte[] getPemBytes(Path path, String pemConst) throws IOException {
-        String str = Files.readString(path);
-        var match = SimpleHttpsServer.pemRE.matcher(str);
-        if (!match.matches()) {
-            throw new IOException(String.format("%s is not a PEM file", path.toString()));
-        }
-        String pemType = match.group(1);
-        if (!pemType.equals(pemConst)) {
-            throw new IOException(String.format("key file should start with %s but starts with %s",
-                    pemConst, pemType));
-        }
-        return Base64.getDecoder().decode(match.group(2).replaceAll("\n", ""));
-    }
-
-    private HttpsServer httpsServer;
+    static System.Logger LOG = System.getLogger(SimpleHttpsServer.class.getPackageName());
+    private final HttpsServer httpsServer;
 
     public SimpleHttpsServer() throws IOException, NoSuchAlgorithmException {
         SSLContext sslContext = SSLContext.getInstance("TLS");
@@ -100,12 +69,44 @@ public class SimpleHttpsServer {
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
     }
 
+    private static byte[] getPemBytes(Path path, String pemConst) throws IOException {
+        String str = Files.readString(path);
+        var match = SimpleHttpsServer.pemRE.matcher(str);
+        if (!match.matches()) {
+            throw new IOException(String.format("%s is not a PEM file", path));
+        }
+        String pemType = match.group(1);
+        if (!pemType.equals(pemConst)) {
+            throw new IOException(String.format("key file should start with %s but starts with %s", pemConst, pemType));
+        }
+        return Base64.getDecoder().decode(match.group(2).replaceAll("\n", ""));
+    }
+
+    // code snippet from https://stackoverflow.com/questions/42675033/how-to-build-a-sslsocketfactory-from-pem-certificate-and-key-without-converting
+    KeyStore getKeyStore() throws KeyStoreException, CertificateException, IOException, NoSuchAlgorithmException,
+            InvalidKeySpecException {
+        KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+        ks.load(null, null);
+        byte[] keyBytes = getPemBytes(SimpleHttpsServer.keyPath, SimpleHttpsServer.pemKeyConst);
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+        var alg = spec.getAlgorithm();
+        if (alg == null) alg = "RSA";
+        KeyFactory kf = KeyFactory.getInstance(alg);
+        Key serverKey = kf.generatePrivate(spec);
+        CertificateFactory cf = CertificateFactory.getInstance("X509");
+        byte[] certBytes = getPemBytes(SimpleHttpsServer.serverCertPath, SimpleHttpsServer.pemCertConst);
+        Certificate serverCertificate = cf.generateCertificate(new ByteArrayInputStream(certBytes));
+        ks.setKeyEntry("serverKey", serverKey, SimpleHttpsServer.noPass, new Certificate[]{serverCertificate});
+        ks.setCertificateEntry("serverCert", serverCertificate);
+        return ks;
+    }
+
     public String[] addToHttpsServer(final AppServer appServer) throws NoSuchAlgorithmException, IOException {
         var methodsAdded = new ArrayList<String>();
         for (final Method m : appServer.getClass().getDeclaredMethods()) {
             if (m.isAnnotationPresent(HttpPath.class)) {
                 if ((m.getModifiers() & Modifier.PUBLIC) != Modifier.PUBLIC) {
-                    System.out.printf("skipping %s because not public\n", m.getName());
+                    LOG.log(System.Logger.Level.WARNING, "skipping {0} because not public", m.getName());
                     continue;
                 }
                 methodsAdded.add(m.getName());
@@ -121,21 +122,23 @@ public class SimpleHttpsServer {
             @Override
             public void handle(HttpExchange exchange) {
                 try {
+                    LOG.log(System.Logger.Level.INFO, "handling {0}", exchange.getRequestURI());
                     m.invoke(appServer, exchange);
-                } catch (Exception e) {
-                    if (e instanceof InvocationTargetException) {
-                        e = (Exception)e.getCause();
+                    LOG.log(System.Logger.Level.INFO, "done handling {0}", exchange.getRequestURI());
+                } catch (Throwable e) {
+                    if (e instanceof InvocationTargetException && e.getCause() != null) {
+                        e = e.getCause();
                     }
-                    e.printStackTrace();
+                    LOG.log(System.Logger.Level.ERROR, "failed with {0} handling {1}", e.getMessage(),
+                            exchange.getRequestURI());
                     try {
                         exchange.sendResponseHeaders(HTTP_INTERNAL_ERROR, -1);
-                        OutputStream os = exchange.getResponseBody();
-                        os.write(
-                                String.format("Error processing request: %s\n", e.getMessage()).getBytes()
-                        );
-                        os.close();
+                        try (OutputStream os = exchange.getResponseBody()) {
+                            os.write(String.format("Error processing request: %s\n", e.getMessage()).getBytes());
+                        }
                         exchange.getRequestBody().close();
                     } catch (Exception ee) {
+                        ee.printStackTrace();
                     }
                 }
             }
@@ -143,6 +146,7 @@ public class SimpleHttpsServer {
     }
 
     public void start() {
+        LOG.log(System.Logger.Level.INFO, "Starting: {0}", httpsServer.getAddress());
         httpsServer.start();
     }
 }
