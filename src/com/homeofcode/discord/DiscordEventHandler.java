@@ -1,4 +1,6 @@
-package com.homeofcode.https;
+package com.homeofcode.discord;
+
+import discord4j.core.event.domain.Event;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,6 +9,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-public @interface HttpPath {
-    String path();
+public @interface DiscordEventHandler {
+    Class<? extends Event> event();
 }

@@ -1,6 +1,6 @@
 package com.homeofcode.https;
 
-import com.homeofcode.oauth.AppServer;
+import com.homeofcode.oauth.AuthServer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
@@ -59,7 +59,6 @@ public class SimpleHttpsServer {
             tmf.init(ks);
             sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         } catch (Exception e) {
-            e.printStackTrace();
             System.out.println(e.getMessage());
             System.exit(2);
         }
@@ -83,7 +82,8 @@ public class SimpleHttpsServer {
     }
 
     // code snippet from https://stackoverflow.com/questions/42675033/how-to-build-a-sslsocketfactory-from-pem-certificate-and-key-without-converting
-    KeyStore getKeyStore() throws KeyStoreException, CertificateException, IOException, NoSuchAlgorithmException,
+    private KeyStore getKeyStore() throws KeyStoreException, CertificateException, IOException,
+            NoSuchAlgorithmException,
             InvalidKeySpecException {
         KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
         ks.load(null, null);
@@ -101,7 +101,7 @@ public class SimpleHttpsServer {
         return ks;
     }
 
-    public String[] addToHttpsServer(final AppServer appServer) throws NoSuchAlgorithmException, IOException {
+    public String[] addToHttpsServer(final AuthServer appServer) throws NoSuchAlgorithmException, IOException {
         var methodsAdded = new ArrayList<String>();
         for (final Method m : appServer.getClass().getDeclaredMethods()) {
             if (m.isAnnotationPresent(HttpPath.class)) {
@@ -117,7 +117,7 @@ public class SimpleHttpsServer {
         return methodsAdded.toArray(new String[0]);
     }
 
-    private HttpHandler createHandler(final AppServer appServer, final Method m) {
+    private HttpHandler createHandler(final AuthServer appServer, final Method m) {
         return new HttpHandler() {
             @Override
             public void handle(HttpExchange exchange) {

@@ -9,5 +9,9 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" exported="" name="json" level="project" />
+    <orderEntry type="library" exported="" name="info.picocli" level="project" />
+    <orderEntry type="library" exported="" name="info.picocli.codegen" level="project" />
+    <orderEntry type="library" exported="" name="discord4j.core" level="project" />
+    <orderEntry type="library" exported="" name="xerial.sqlite.jdbc" level="project" />
   </component>
 </module>
