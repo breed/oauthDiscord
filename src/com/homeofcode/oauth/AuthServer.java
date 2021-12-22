@@ -214,7 +214,8 @@ public class AuthServer {
             }
         }
         for (var key : toDelete) {
-            nonces.remove(key);
+            var nr  = nonces.remove(key);
+            nr.complete(null);
         }
         if (nextExpire != null) {
             scheduledExecutor.schedule(this::checkExpirations, now.until(nextExpire, ChronoUnit.SECONDS),
