@@ -6,7 +6,9 @@ import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.entity.User;
 import discord4j.core.object.entity.channel.TextChannel;
+import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.spec.MessageCreateSpec;
+import reactor.core.publisher.Mono;
 
 import java.sql.Date;
 import java.sql.SQLException;
@@ -15,6 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.System.Logger.Level.DEBUG;
+import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 
 public class AuthBot extends DiscordSimpleBot {
@@ -35,7 +38,7 @@ public class AuthBot extends DiscordSimpleBot {
         if (author.equals(self)) return; // skip our messages
         var channel = message.getChannel().block();
         if (channel == null) {
-            LOG.log(System.Logger.Level.ERROR, "got a null channel for " + message);
+            LOG.log(ERROR, "got a null channel for " + message);
             return;
         }
         var channelType = channel.getType();
@@ -61,7 +64,10 @@ public class AuthBot extends DiscordSimpleBot {
 
         if (message.getUserMentions().contains(self)) {
             final TextChannel textChannel = (TextChannel) channel;
-//            message.addReaction(ReactionEmoji.unicode("\u2764")).block();
+            message.addReaction(ReactionEmoji.unicode("\u2764"))
+                    .doOnError(t -> LOG.log(ERROR, "problem adding reaction: " + t.getMessage()))
+                    .onErrorResume(t -> Mono.empty())
+                    .block();
             if (message.getContent().contains("verify")) {
                 final var privateChannel = author.getPrivateChannel().block();
                 if (privateChannel == null) {
@@ -82,8 +88,10 @@ public class AuthBot extends DiscordSimpleBot {
                 privateChannel.createMessage(String.format("please verify your id using %s",
                                 authServer.getValidateURL(nr))).block();
 
-//                message.delete().doOnError(t -> LOG.log(System.Logger.Level.ERROR, "couldn't delete message", t))
-//                        .block();
+                message.delete()
+                        .doOnError(t -> LOG.log(System.Logger.Level.ERROR, "couldn't delete message", t))
+                        .onErrorResume(t -> Mono.empty())
+                        .block();
 
                 // once
                 nr.future().thenAccept(email -> {
