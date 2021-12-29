@@ -114,13 +114,25 @@ public class AuthBot extends DiscordSimpleBot {
                             author.getUsername(), author.getId().asString(), email);
                     guild.getRoles().flatMap(role -> {
                         if (role != null) {
+                            LOG.log(INFO, "checking |{0}| against |{1}|", role.getName(), authServer.authDomain);
                             // we are looking for the
                             if (role.getName().equalsIgnoreCase(authServer.authDomain)) {
+                                LOG.log(INFO, "adding member");
                                 // add the role to the user by converting to member first
                                 // the flatMap should really only execute once since it would be weird if a
                                 // user were a member of the same guild twice...
                                 var member = author.asMember(guild.getId());
-                                member.flatMap(m -> m.addRole(role.getId())).block();
+                                member.flatMap(m -> {
+                                    LOG.log(INFO, "starting add role for {0}", m.getUsername());
+                                    try {
+                                        m.addRole(role.getId()).block();
+                                    } catch (Exception e) {
+                                        LOG.log(INFO, "exception {0}", e.getMessage());
+                                    }
+                                    LOG.log(INFO, "{0} added to role {1}", m.getUsername(), role.getName());
+                                    return Mono.empty();
+                                }).block();
+                                LOG.log(INFO, "done adding member");
                             }
                         }
                         return Mono.empty();

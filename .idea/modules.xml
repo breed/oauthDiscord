@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/oauthserver.iml" filepath="$PROJECT_DIR$/oauthserver.iml" />
+      <module fileurl="file://$PROJECT_DIR$/discordoauth.iml" filepath="$PROJECT_DIR$/discordoauth.iml" />
     </modules>
   </component>
 </project>
