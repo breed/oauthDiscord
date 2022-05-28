@@ -1,7 +1,7 @@
 <component name="ArtifactManager">
-  <artifact type="jar" build-on-make="true" name="oauthserver:jar">
-    <output-path>$PROJECT_DIR$/out/artifacts/oauthserver_jar</output-path>
-    <root id="archive" name="oauthserver.jar">
+  <artifact type="jar" build-on-make="true" name="discordoauth:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/discordoauth_jar</output-path>
+    <root id="archive" name="discordoauth.jar">
       <element id="module-output" name="discordoauth" />
       <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/json/json/20211205/json-20211205.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$MAVEN_REPOSITORY$/info/picocli/picocli/4.6.2/picocli-4.6.2.jar" path-in-jar="/" />
