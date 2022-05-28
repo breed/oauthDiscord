@@ -3,6 +3,7 @@ package com.homeofcode.oauth;
 import com.homeofcode.discord.DiscordEventHandler;
 import com.homeofcode.discord.DiscordSimpleBot;
 import discord4j.common.util.Snowflake;
+import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.entity.User;
@@ -114,58 +115,69 @@ public class AuthBot extends DiscordSimpleBot {
                             author.getUsername(), author.getId().asString(), email);
                     guild.getRoles().flatMap(role -> {
                         if (role != null) {
-                            LOG.log(INFO, "checking |{0}| against |{1}|", role.getName(), authServer.authDomain);
                             // we are looking for the
                             if (role.getName().equalsIgnoreCase(authServer.authDomain)) {
-                                LOG.log(INFO, "adding member");
                                 // add the role to the user by converting to member first
                                 // the flatMap should really only execute once since it would be weird if a
                                 // user were a member of the same guild twice...
                                 var member = author.asMember(guild.getId());
                                 member.flatMap(m -> {
-                                    LOG.log(INFO, "starting add role for {0}", m.getUsername());
-                                    try {
-                                        m.addRole(role.getId()).block();
-                                    } catch (Exception e) {
-                                        LOG.log(INFO, "exception {0}", e.getMessage());
-                                    }
+                                    m.addRole(role.getId()).block();
                                     LOG.log(INFO, "{0} added to role {1}", m.getUsername(), role.getName());
                                     return Mono.empty();
                                 }).block();
-                                LOG.log(INFO, "done adding member");
                             }
                         }
                         return Mono.empty();
                     }).blockLast();
                 } catch (SQLException e) {
                     privateChannel.createMessage("problem recording to database.").block();
+                } catch (Exception e) {
+                    privateChannel.createMessage("unexpected exception: " + e.getMessage());
                 }
             }
         });
     }
 
+    boolean foundChannel = false;
+    boolean foundDomain = false;
+    boolean ableToDeleteMessages = false;
+    boolean ableToAddRole = false;
+
     @DiscordEventHandler(event = ReadyEvent.class)
     public void onReadyEvent(ReadyEvent event) {
         this.self = event.getSelf();
         LOG.log(DEBUG, "I am " + self);
-        event.getClient().getGuilds().all(guild -> {
+        GatewayDiscordClient client = event.getClient();
+        client.getGuilds().all(guild -> {
             LOG.log(DEBUG, "in guild {0}", guild.getName());
             guild.getChannels().flatMap(channel -> {
                 if (channel.getType() == Channel.Type.GUILD_TEXT && channel.getName().equals(verificationChannel)) {
+                    foundChannel = true;
                     var textChannel = (TextChannel) channel;
-                    System.out.println("deleting messages in " + channel.getName());
+                    textChannel.createMessage("hello world!").block();
                     textChannel.bulkDeleteMessages(textChannel.getMessagesBefore(Snowflake.of(Instant.now())))
-                            .blockLast();
-                    System.out.println("done deleting messages");
+                            .doOnComplete(() -> ableToDeleteMessages = true).blockLast();
+                    guild.getRoles().flatMap(role -> {
+                       if (role.getName().equalsIgnoreCase(authServer.authDomain)) {
+                           foundDomain = true;
+                           self.asMember(guild.getId()).flatMap(member -> {
+                               member.addRole(role.getId()).block();
+                               member.removeRole(role.getId()).block();
+                               ableToAddRole = true;
+                               return Mono.empty();
+                           }).block();
+                       }
+                       return Mono.empty();
+                    }).blockLast();
                 }
                 return Mono.empty();
             }).blockLast();
+            LOG.log(INFO,
+                    "Validation of {0}: foundChannel={1} foundDomain={2} ableToDeleteMessages={3} ableToAddRole={4}",
+                    guild.getName(), foundChannel, foundDomain, ableToDeleteMessages, ableToAddRole);
             return true;
         }).block();
         LOG.log(INFO, "Logged in as {0}#{1}", self.getUsername(), self.getDiscriminator());
-    }
-
-    public void startBot() {
-        super.startBot();
     }
 }
