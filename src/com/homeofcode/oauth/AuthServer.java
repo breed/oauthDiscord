@@ -120,14 +120,14 @@ public class AuthServer {
     }
 
     static private String getResource(String path) throws IOException {
-        var stream = AuthServer.class.getResourceAsStream(path);
-        if (stream == null) throw new FileNotFoundException(path);
-        return new String(stream.readAllBytes());
+        try (var stream = AuthServer.class.getResourceAsStream(path)) {
+            if (stream == null) throw new FileNotFoundException(path);
+            return new String(stream.readAllBytes());
+        }
     }
 
     void checkAuthTable() throws SQLException {
         var stmt = connection.createStatement();
-        var metaData = connection.getMetaData();
         stmt.execute("""
                 create table if not exists authRecords (
                 discordSnowflake text primary key,
@@ -254,6 +254,11 @@ public class AuthServer {
     synchronized public void loginPage(HttpExchange exchange) throws Exception {
         var nonce = extractParams(exchange).get("nonce");
         var nonceRecord = nonces.get(nonce);
+        if (nonceRecord == null) {
+            redirect(exchange, String.format("/login/error?error=%s",
+                    URLEncoder.encode("Login URL has expired.", Charset.defaultCharset())));
+            return;
+        }
         var authURL = createAuthURL(nonceRecord);
         redirect(exchange, authURL);
     }
@@ -363,7 +368,11 @@ public class AuthServer {
 
                 var authServer = new AuthServer(props);
 
-                var simpleHttpsServer = new SimpleHttpsServer();
+                var redirectURL = new URL(authServer.authRedirectURL);
+
+                int port = redirectURL.getPort();
+                LOG.log(INFO, "listening for HTTPS on port {0}", port);
+                var simpleHttpsServer = new SimpleHttpsServer(port);
                 var added = simpleHttpsServer.addToHttpsServer(authServer);
                 for (var add : added) {
                     LOG.log(INFO, "added {0}", add);

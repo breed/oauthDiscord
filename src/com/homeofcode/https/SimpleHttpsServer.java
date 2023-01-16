@@ -49,7 +49,7 @@ public class SimpleHttpsServer {
     static System.Logger LOG = System.getLogger(SimpleHttpsServer.class.getPackageName());
     private final HttpsServer httpsServer;
 
-    public SimpleHttpsServer() throws IOException, NoSuchAlgorithmException {
+    public SimpleHttpsServer(int port) throws IOException, NoSuchAlgorithmException {
         SSLContext sslContext = SSLContext.getInstance("TLS");
         try {
             KeyStore ks = getKeyStore();
@@ -64,7 +64,7 @@ public class SimpleHttpsServer {
         }
 
         httpsServer = HttpsServer.create();
-        httpsServer.bind(new InetSocketAddress(443), 10);
+        httpsServer.bind(new InetSocketAddress(port), 10);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
     }
 
