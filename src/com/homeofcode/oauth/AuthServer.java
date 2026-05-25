@@ -56,7 +56,7 @@ public class AuthServer {
         }
     }
 
-    Random rand = new Random();
+    Random rand = new java.security.SecureRandom();
     /**
      * the client_id used to talk to google services
      */
@@ -162,8 +162,11 @@ public class AuthServer {
 
     private static HashMap<String, String> extractParams(HttpExchange exchange) {
         var params = new HashMap<String, String>();
-        for (var param : exchange.getRequestURI().getQuery().split("&")) {
+        var query = exchange.getRequestURI().getQuery();
+        if (query == null) return params;
+        for (var param : query.split("&")) {
             var keyVal = param.split("=", 2);
+            if (keyVal.length < 2) continue;
             params.put(keyVal[0], URLDecoder.decode(keyVal[1], Charset.defaultCharset()));
         }
         return params;
@@ -264,7 +267,7 @@ public class AuthServer {
     }
 
     @HttpPath(path = "/login/callback")
-    public void loginCallback(HttpExchange exchange) throws Exception {
+    synchronized public void loginCallback(HttpExchange exchange) throws Exception {
         HashMap<String, String> params = extractParams(exchange);
         exchange.getRequestBody().close();
         if (params.containsKey("error")) {
@@ -320,14 +323,14 @@ public class AuthServer {
 
     @HttpPath(path = "/login/error")
     public void loginError(HttpExchange exchange) throws Exception {
-        var error = extractParams(exchange).get("error");
+        var error = extractParams(exchange).getOrDefault("error", "unknown error");
         byte[] response = errorHTML.replace("ERROR", error).getBytes();
         sendOKResponse(exchange, response);
     }
 
     @HttpPath(path = "/login/success")
     public void loginSuccess(HttpExchange exchange) throws Exception {
-        var email = extractParams(exchange).get("email");
+        var email = extractParams(exchange).getOrDefault("email", "unknown");
         byte[] response = successHTML.replace("EMAIL", email).getBytes();
         sendOKResponse(exchange, response);
     }

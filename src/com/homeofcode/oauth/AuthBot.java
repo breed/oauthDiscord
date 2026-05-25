@@ -120,12 +120,11 @@ public class AuthBot extends DiscordSimpleBot {
                                 // add the role to the user by converting to member first
                                 // the flatMap should really only execute once since it would be weird if a
                                 // user were a member of the same guild twice...
-                                var member = author.asMember(guild.getId());
-                                member.flatMap(m -> {
-                                    m.addRole(role.getId()).block();
-                                    LOG.log(INFO, "{0} added to role {1}", m.getUsername(), role.getName());
-                                    return Mono.empty();
-                                }).block();
+                                author.asMember(guild.getId())
+                                        .flatMap(m -> m.addRole(role.getId())
+                                                .doOnSuccess(v -> LOG.log(INFO, "{0} added to role {1}",
+                                                        m.getUsername(), role.getName())))
+                                        .block();
                             }
                         }
                         return Mono.empty();
@@ -133,7 +132,7 @@ public class AuthBot extends DiscordSimpleBot {
                 } catch (SQLException e) {
                     privateChannel.createMessage("problem recording to database.").block();
                 } catch (Exception e) {
-                    privateChannel.createMessage("unexpected exception: " + e.getMessage());
+                    privateChannel.createMessage("unexpected exception: " + e.getMessage()).block();
                 }
             }
         });
@@ -161,12 +160,11 @@ public class AuthBot extends DiscordSimpleBot {
                     guild.getRoles().flatMap(role -> {
                        if (role.getName().equalsIgnoreCase(authServer.authDomain)) {
                            foundDomain = true;
-                           self.asMember(guild.getId()).flatMap(member -> {
-                               member.addRole(role.getId()).block();
-                               member.removeRole(role.getId()).block();
-                               ableToAddRole = true;
-                               return Mono.empty();
-                           }).block();
+                           self.asMember(guild.getId())
+                                   .flatMap(member -> member.addRole(role.getId())
+                                           .then(member.removeRole(role.getId()))
+                                           .doOnSuccess(v -> ableToAddRole = true))
+                                   .block();
                        }
                        return Mono.empty();
                     }).blockLast();
